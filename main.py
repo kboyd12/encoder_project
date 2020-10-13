@@ -1,15 +1,20 @@
 import csv
+import cv2
+import numpy as np
 import tkinter as tk
 from datetime import datetime
 from tkinter.filedialog import askopenfilename, asksaveasfilename
-
 import pymsgbox
+import picamera
+import time
 
+overlay_on = False
+camera_on = False
 
 class App():
-    """Saves a new run to a file"""
 
     def save_file(self):
+        """Saves a new run to a file"""
         entry = entry_field.get()
         if entry == '':
             pymsgbox.alert('Enter the Entry Location')
@@ -57,19 +62,75 @@ class App():
         except:
             pymsgbox.alert('No run has been started. Click Start Run')
 
+    def camera_on(self):
+        global camera_on
+        if not camera_on:
+            camera.resolution = (1280, 720)
+            camera.framerate = 30
+            camera.sensor_mode = 6
+            camera.start_preview()
+            camera.preview.fullscreen = False
+            camera.preview.window = (
+                int((screen_width - camera.resolution[0])/2), 0, 1280, int(screen_height/1.5))
+            self.window_size = camera.preview.window
+
+            camera_on = True
+        else:
+            camera.stop_preview()
+            
+            camera_on = False
+
+    def camera_overlay(self):
+        global overlay_on
+        if not overlay_on:
+            overlay = np.zeros((720, 1280, 3), dtype=np.uint8)
+            overlay[360, :, :] = 0xFF
+            overlay[:, 640, :] = 0xFF
+
+            self.over = camera.add_overlay(overlay.tobytes(), size=(1280, 720), layer=3, alpha=64, fullscreen=False, window=self.window_size)
+            overlay_on = True
+        else:
+            camera.remove_overlay(self.over)
+            overlay_on = False
+
 
 if __name__ == "__main__":
-    # Instantiates the class as an object "run"
-    run = App()
-
     window = tk.Tk()
     window.title("Encoder App")
     # Change background color
     window['bg'] = '#B47676'
 
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+
+    camera = picamera.PiCamera()
+
+    # Instantiates the class as an object "run"
+    run = App()
+
     # Creates a frame for the buttons and binds it to the sides
     buttons_frame = tk.Frame(window, bg='#B47676')
     buttons_frame.grid(row=0, column=0, sticky='ew')
+
+    btn_camera_on = tk.Button(
+        buttons_frame,
+        text='Camera (On/Off)',
+        font=('calibri', 16),
+        command=run.camera_on,
+        relief=tk.RAISED,
+        highlightthickness=0
+    )
+    btn_camera_on.grid(row=0, column=5, padx=(10), pady=10)
+
+    btn_camera_overlay = tk.Button(
+        buttons_frame,
+        text='Camera Overlay (On/Off)',
+        font=('calibri', 16),
+        command=run.camera_overlay,
+        relief=tk.RAISED,
+        highlightthickness=0
+    )
+    btn_camera_overlay.grid(row=0, column=6, padx=(10), pady=10)
 
     # Making and displaying buttons
     btn_start_run = tk.Button(
@@ -121,8 +182,13 @@ if __name__ == "__main__":
     entry_field.grid(row=0, column=4, padx=(5), pady=10)
 
     # Run the encoder
-    encoder_frame = tk.Label(buttons_frame, font=(
-        'calibri', 48, 'bold'), background='grey', fg='black', bd=3)
+    encoder_frame = tk.Label(
+        buttons_frame,
+        font=('calibri', 48, 'bold'),
+        background='grey',
+        fg='black',
+        bd=3
+    )
     encoder_frame.grid(row=1, column=0, columnspan=5,
                        padx=10, pady=5, sticky='nsew')
     # Update the encoder
