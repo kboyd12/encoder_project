@@ -1,5 +1,4 @@
 import csv
-import cv2
 import numpy as np
 import tkinter as tk
 from datetime import datetime
@@ -8,10 +7,20 @@ import pymsgbox
 import picamera
 import time
 
-overlay_on = False
-camera_on = False
+overlay_on = True
+is_recording = False
+
 
 class App():
+    def __init__(self):
+        """Initialize the App class to start with the camera and overlay on"""
+        self.camera_on()
+
+        self.overlay = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.overlay[360, :, :] = 0xFF
+        self.overlay[:, 640, :] = 0xFF
+        self.over = camera.add_overlay(self.overlay.tobytes(), size=(
+            1280, 720), layer=3, alpha=30, fullscreen=False, window=self.window_size)
 
     def save_file(self):
         """Saves a new run to a file"""
@@ -21,7 +30,7 @@ class App():
             return
 
         self.filepath = asksaveasfilename(
-            defaultextension='txt',
+            defaultextension='.txt',
             filetypes=[("Text Files", "*.txt"), ('All Files', '*.*')]
         )
         if not self.filepath:
@@ -63,35 +72,36 @@ class App():
             pymsgbox.alert('No run has been started. Click Start Run')
 
     def camera_on(self):
-        global camera_on
-        if not camera_on:
-            camera.resolution = (1280, 720)
-            camera.framerate = 30
-            camera.sensor_mode = 6
-            camera.start_preview()
-            camera.preview.fullscreen = False
-            camera.preview.window = (
-                int((screen_width - camera.resolution[0])/2), 0, 1280, int(screen_height/1.5))
-            self.window_size = camera.preview.window
-
-            camera_on = True
-        else:
-            camera.stop_preview()
-            
-            camera_on = False
+        """Uses preview of picamera to display video, changes window size in preview.window"""
+        camera.resolution = (1280, 720)
+        camera.framerate = 30
+        camera.sensor_mode = 6
+        camera.start_preview()
+        camera.preview.fullscreen = False
+        camera.preview.window = (
+            int((screen_width - camera.resolution[0])/2), 0, 1280, int(screen_height/1.5))
+        self.window_size = camera.preview.window
 
     def camera_overlay(self):
+        """Checks to see if overlay is present and turns it on/off"""
         global overlay_on
-        if not overlay_on:
-            overlay = np.zeros((720, 1280, 3), dtype=np.uint8)
-            overlay[360, :, :] = 0xFF
-            overlay[:, 640, :] = 0xFF
-
-            self.over = camera.add_overlay(overlay.tobytes(), size=(1280, 720), layer=3, alpha=64, fullscreen=False, window=self.window_size)
-            overlay_on = True
-        else:
+        if overlay_on:
             camera.remove_overlay(self.over)
+
             overlay_on = False
+        else:
+            self.over = camera.add_overlay(self.overlay.tobytes(
+            ), layer=3, alpha=30, fullscreen=False, window=self.window_size)
+
+            overlay_on = True
+
+    def record(self):
+        """Recording functionality, saves the file to the filepath specified in func(save_file)"""
+        if not is_recording:
+            camera.start_recording('{}'.format(
+                self.filepath.split('.')[0] + '.h264'))
+        else:
+            camera.stop_recording()
 
 
 if __name__ == "__main__":
@@ -112,31 +122,31 @@ if __name__ == "__main__":
     buttons_frame = tk.Frame(window, bg='#B47676')
     buttons_frame.grid(row=0, column=0, sticky='ew')
 
-    btn_camera_on = tk.Button(
+    # Making and displaying buttons
+    btn_record = tk.Button(
         buttons_frame,
-        text='Camera (On/Off)',
-        font=('calibri', 16),
-        command=run.camera_on,
+        text='Record',
+        font=('calibri', 12),
+        command=run.record,
         relief=tk.RAISED,
         highlightthickness=0
     )
-    btn_camera_on.grid(row=0, column=5, padx=(10), pady=10)
+    btn_record.grid(row=0, column=6, padx=(10), pady=10)
 
     btn_camera_overlay = tk.Button(
         buttons_frame,
         text='Camera Overlay (On/Off)',
-        font=('calibri', 16),
+        font=('calibri', 12),
         command=run.camera_overlay,
         relief=tk.RAISED,
         highlightthickness=0
     )
-    btn_camera_overlay.grid(row=0, column=6, padx=(10), pady=10)
+    btn_camera_overlay.grid(row=0, column=5, padx=(10), pady=10)
 
-    # Making and displaying buttons
     btn_start_run = tk.Button(
         buttons_frame,
         text='Start Run',
-        font=('calibri', 16),
+        font=('calibri', 12),
         command=run.save_file,
         relief=tk.RAISED,
         highlightthickness=0
@@ -149,7 +159,7 @@ if __name__ == "__main__":
         command=run.mark,
         relief=tk.RAISED,
         highlightthickness=0,
-        font=('calibri', 16)
+        font=('calibri', 12)
     )
     btn_mark.grid(row=0, column=1, padx=(10), pady=10)
 
@@ -159,7 +169,7 @@ if __name__ == "__main__":
         command=run.open_file,
         highlightthickness=0,
         relief=tk.RAISED,
-        font=('calibri', 16)
+        font=('calibri', 12)
     )
     btn_open.grid(row=0, column=2, padx=10, pady=10)
 
@@ -168,7 +178,7 @@ if __name__ == "__main__":
         buttons_frame,
         text='Entry Location',
         bg='#B47676',
-        font=('calibri', 16, 'bold')
+        font=('calibri', 12, 'bold')
     )
     entry_label.grid(row=0, column=3, padx=10, pady=10)
 
@@ -184,7 +194,7 @@ if __name__ == "__main__":
     # Run the encoder
     encoder_frame = tk.Label(
         buttons_frame,
-        font=('calibri', 48, 'bold'),
+        font=('calibri', 32, 'bold'),
         background='grey',
         fg='black',
         bd=3
@@ -200,7 +210,7 @@ if __name__ == "__main__":
         text="Comments",
         padx=5,
         pady=5,
-        font=('calibri', 28, 'bold'),
+        font=('calibri', 20, 'bold'),
         borderwidth=3,
         bg='#B47676',
         highlightthickness=0,
@@ -222,11 +232,19 @@ if __name__ == "__main__":
         group1,
         width=40,
         height=10,
-        font=('calibri', 16),
+        font=('calibri', 12),
         relief=tk.SUNKEN,
         highlightthickness=0,
         bd=4
     )
     txtbox.grid(row=0, column=0, sticky='nswe')
+
+    # Where to open and size of the window
+    w = 950
+    h = 275
+    x = screen_width/2 - w/2
+    y = screen_height - h*1.15
+
+    window.geometry('%dx%d+%d+%d' % (w, h, x, y))
 
     window.mainloop()
