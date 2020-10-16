@@ -7,9 +7,6 @@ import pymsgbox
 import picamera
 import time
 
-overlay_on = True
-is_recording = False
-
 
 class App():
     def __init__(self):
@@ -21,6 +18,9 @@ class App():
         self.overlay[:, 640, :] = 0xFF
         self.over = camera.add_overlay(self.overlay.tobytes(), size=(
             1280, 720), layer=3, alpha=30, fullscreen=False, window=self.window_size)
+
+        self.overlay_on = True
+        self.is_recording = False
 
     def save_file(self):
         """Saves a new run to a file"""
@@ -48,6 +48,10 @@ class App():
         # Resets every 1000ms
         encoder_frame.after(1000, self.encoder)
         return string
+
+        # TODO poll the arduino for value to start, set as baseline. Display the delta between current value and baseline as
+        # distance. Pass that delta variable to the mark function or just return it and call inside mark like it's doing now.
+        # Will probably implement in separate file and import
 
     def open_file(self):
         """Opens an already existing file to edit"""
@@ -84,24 +88,32 @@ class App():
 
     def camera_overlay(self):
         """Checks to see if overlay is present and turns it on/off"""
-        global overlay_on
-        if overlay_on:
+        if self.overlay_on:
             camera.remove_overlay(self.over)
 
-            overlay_on = False
+            self.overlay_on = False
         else:
+            # alpha changes transparency of overlay
             self.over = camera.add_overlay(self.overlay.tobytes(
             ), layer=3, alpha=30, fullscreen=False, window=self.window_size)
 
-            overlay_on = True
+            self.overlay_on = True
 
     def record(self):
-        """Recording functionality, saves the file to the filepath specified in func(save_file)"""
-        if not is_recording:
-            camera.start_recording('{}'.format(
-                self.filepath.split('.')[0] + '.h264'))
+        """Recording functionality, asks location to save file, default extension is .h264. Need an mp4 converter functionality"""
+        if not self.is_recording:
+            record_filepath = asksaveasfilename(
+                defaultextension='.h264',
+                filetypes=[("h264 Files", "*.h264"), ('All Files', '*.*')]
+            )
+            if not record_filepath:
+                return
+
+            camera.start_recording(record_filepath)
+            self.is_recording = True
         else:
             camera.stop_recording()
+            self.is_recording = False
 
 
 if __name__ == "__main__":
